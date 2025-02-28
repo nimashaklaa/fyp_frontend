@@ -1,12 +1,10 @@
 import './newPrompt.css'
 import React, {useEffect, useRef, useState} from "react";
-import Upload from "../upload/upload.tsx";
+// import Upload from "../upload/upload.tsx";
 import {IKImage} from "imagekitio-react";
-import model from "../../lib/gemini.ts";
-import Markdown from "react-markdown";
-import {Part} from "@google/generative-ai";
 import {useMutation, useQueryClient} from "@tanstack/react-query";
 import {ChatMessage} from "../../routes/chatPage/chatPage.tsx";
+import Markdown from "react-markdown";
 
 export interface ImgState {
     isLoading: boolean; // Indicates if an image upload is in progress
@@ -27,22 +25,7 @@ const NewPrompt=({data}:NewPromptProps)=>{
     const [img,setImg]= useState<ImgState>({isLoading:false,error:"",dbData:{},aiData:{}})
     const [question, setQuestion] = useState("")
     const [answer, setAnswer] = useState("")
-
-    const chat = model.startChat({
-        history:[
-            {
-                role:"user",
-                parts:[{text:"Hello, I have 2 dogs in my house"}],
-            },
-            {
-                role:"model",
-                parts:[{text: "Great!. What do you need to know?"}]
-            }
-        ],
-        generationConfig:{
-            // maxOutputTokens:100
-        }
-    })
+    const [isTyping, setIsTyping] = useState(false)
 
     // this is used to automatically scroll down to the end of the chat
     const endRef =useRef<HTMLDivElement | null>(null)
@@ -51,7 +34,7 @@ const NewPrompt=({data}:NewPromptProps)=>{
     const queryClient = useQueryClient()
 
     const mutation = useMutation({
-        mutationFn: async ()=>{
+        mutationFn:async ({ question, answer, img }: { question: string; answer: string; img?: string })=>{
             if (!data || !data.history.length) {
                 throw new Error("No chat history available");
             }
@@ -69,8 +52,8 @@ const NewPrompt=({data}:NewPromptProps)=>{
                 },
                 body: JSON.stringify({
                     question:question.length?question:undefined,
-                    answer,
-                    img:img.dbData?.filePath || undefined
+                    answer:answer||"AI response not available",
+                    img:img || undefined
                 })
             }).then((res)=>res.json())
         },
@@ -80,12 +63,13 @@ const NewPrompt=({data}:NewPromptProps)=>{
                     formRef.current.reset()
                 }
                 setQuestion("")
-                setAnswer("")
+                setIsTyping(false)
                 setImg({isLoading:false,error:"",dbData:{},aiData:{}})
             })
         },
         onError:(err)=>{
             console.log(err)
+            setIsTyping(false)
         }
     })
 
@@ -95,24 +79,37 @@ const NewPrompt=({data}:NewPromptProps)=>{
 
     const add = async (prompt:string, isInitail:boolean)=>{
         if (!isInitail) setQuestion(prompt)
-        try {
-            // Ensure aiData is properly formatted as a `Part` if it exists
-            const inputParts: (string | Part)[] = Object.keys(img.aiData).length
-                ? [{ inlineData: img.aiData.inlineData }, prompt] // Convert to correct type
-                : [prompt];
 
-            const result = await chat.sendMessageStream(inputParts)
-            let accumulatedText =""
-            for await (const chunk of result.stream){
-                const chunkText = chunk.text()
-                console.log(chunkText)
-                accumulatedText+=chunkText
-                setAnswer(accumulatedText);
+        setIsTyping(true)
+        try {
+            const response = await fetch("http://127.0.0.1:8000/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: prompt }), // Send user input
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
             }
-            mutation.mutate()
+
+            const data = await response.json(); // Parse the response
+
+            if (!data.message) {
+                throw new Error("Invalid response structure");
+            }
+
+            setAnswer(prev => (prev === data.message ? prev : data.message));
+
+            mutation.mutate({
+                question: prompt,
+                answer: data.message, // ✅ Use the received AI response directly
+                img: img.dbData?.filePath || undefined // ✅ Ensure correct data is passed
+            });
         } catch (error) {
             console.error("Error fetching response:", error);
             setAnswer("Error: Unable to generate response.");
+        }finally {
+            setIsTyping(false);
         }
     }
     const handleSubmit=async (e: React.FormEvent<HTMLFormElement>) => {
@@ -127,13 +124,13 @@ const NewPrompt=({data}:NewPromptProps)=>{
     //If you don't need to run this twice as the root layout is in strict mode use effects run twice to find any possible bug, in production this does not need
     const hasRun = useRef(false)
     useEffect(() => {
-        if(!hasRun.current){
-            if(data?.history?.length ===1){
-                add(data.history[0].parts[0].text, true)
-            }
+        if (!hasRun.current && data?.history?.length === 1) {
+            add(data.history[0].parts[0].text, true);
+            hasRun.current = true;
         }
-        hasRun.current=true
-    }, []);
+    }, [data]);
+
+    console.log("answer",answer)
 
     return(
         <>
@@ -147,10 +144,24 @@ const NewPrompt=({data}:NewPromptProps)=>{
                 />
             )}
             {question && (<div className="message user">{question}</div>)}
-            {answer && (<div className="message"><Markdown>{answer}</Markdown></div>)}
+            {isTyping ? (
+                <div className="typing-container">
+                    <span className="typing-animation">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </span>
+                </div>
+            ) : (
+                answer && (
+                    <div className="message">
+                        <Markdown>{answer.replace(/\n/g, "  \n")}</Markdown> {/* ✅ Preserve line breaks */}
+                    </div>
+                )
+            )}
             <div className="endChat" ref={endRef}></div>
             <form className="newPrompt" onSubmit={handleSubmit} ref={formRef}>
-                <Upload setImg={setImg}/>
+                {/*<Upload setImg={setImg}/>*/}
                 <input id="file" type="file"  multiple={false} hidden/>
                 <input type="text" name="text" placeholder="Plan your next trip..."/>
                 <button>

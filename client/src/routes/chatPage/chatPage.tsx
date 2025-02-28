@@ -46,7 +46,7 @@ const ChatPage =()=>{
                                 />
                             )}
                             <div className={message.role==="user"?"message user":"message"} >
-                                <Markdown>{message.parts[0].text}</Markdown>
+                                <Markdown>{message.parts[0].text.replace(/\n/g, "  \n")}</Markdown>
                             </div>
                         </React.Fragment>
                     ))
