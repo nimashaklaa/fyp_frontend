@@ -45,8 +45,24 @@ const Upload =({setImg}:UploadProps)=>{
         console.log("Progress",progress)
     }
     const onUploadStart=(evt:any)=>{
+        const file = evt.target.files[0]
+        const reader = new FileReader()
+        reader.onloadend=()=>{
+            if(!reader.result){
+                console.error("FileReader result is null")
+                return
+            }
+            const base64Data = (reader.result as string)?.split(",")[1]||""
+            setImg(prev=>({...prev,isLoading:true, aiData:{
+                inlineData:{
+                    data:base64Data,
+                    mimeType:file.type
+                }
+                }}))
+
+        }
         console.log("start",evt)
-        setImg(prev=>({...prev,isLoading:true}))
+        reader.readAsDataURL(file)
     }
     return(
         <IKContext urlEndpoint={urlEndpoint} publicKey={publicKey} authenticator={authenticator}>
