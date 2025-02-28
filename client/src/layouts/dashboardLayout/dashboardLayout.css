@@ -5,6 +5,7 @@
 
     .menu{
         flex: 1;
+        padding-top: 20px;
     }
 
     .content{

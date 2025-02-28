@@ -5,6 +5,8 @@ import {IKImage} from "imagekitio-react";
 import model from "../../lib/gemini.ts";
 import Markdown from "react-markdown";
 import {Part} from "@google/generative-ai";
+import {useMutation, useQueryClient} from "@tanstack/react-query";
+import {ChatMessage} from "../../routes/chatPage/chatPage.tsx";
 
 export interface ImgState {
     isLoading: boolean; // Indicates if an image upload is in progress
@@ -13,7 +15,14 @@ export interface ImgState {
     aiData: Record<string, any>; // Holds uploaded image data
 }
 
-const NewPrompt=()=>{
+interface NewPromptProps{
+    data?:{
+        _id?:string;
+        history:ChatMessage[];
+    }
+}
+
+const NewPrompt=({data}:NewPromptProps)=>{
 
     const [img,setImg]= useState<ImgState>({isLoading:false,error:"",dbData:{},aiData:{}})
     const [question, setQuestion] = useState("")
@@ -37,13 +46,55 @@ const NewPrompt=()=>{
 
     // this is used to automatically scroll down to the end of the chat
     const endRef =useRef<HTMLDivElement | null>(null)
+    const formRef =useRef<HTMLFormElement | null>(null)
+
+    const queryClient = useQueryClient()
+
+    const mutation = useMutation({
+        mutationFn: async ()=>{
+            if (!data || !data.history.length) {
+                throw new Error("No chat history available");
+            }
+            const chatId = data?._id;
+            console.log("chatId", chatId)
+            if (!chatId) {
+                console.error("Chat ID is missing!");
+                return;
+            }
+            return fetch(`${import.meta.env.VITE_API_URL}/api/chats/${chatId}`, {
+                method: "PUT",
+                credentials:"include",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    question:question.length?question:undefined,
+                    answer,
+                    img:img.dbData?.filePath || undefined
+                })
+            }).then((res)=>res.json())
+        },
+        onSuccess:()=>{
+            queryClient.invalidateQueries({queryKey:["chat",data?._id]}).then(()=>{
+                if(formRef.current){
+                    formRef.current.reset()
+                }
+                setQuestion("")
+                setAnswer("")
+                setImg({isLoading:false,error:"",dbData:{},aiData:{}})
+            })
+        },
+        onError:(err)=>{
+            console.log(err)
+        }
+    })
 
     useEffect(() => {
         endRef.current?.scrollIntoView({behavior:"smooth"})
     }, [question, answer, img.dbData]);
 
-    const add = async (prompt:string)=>{
-        setQuestion(prompt)
+    const add = async (prompt:string, isInitail:boolean)=>{
+        if (!isInitail) setQuestion(prompt)
         try {
             // Ensure aiData is properly formatted as a `Part` if it exists
             const inputParts: (string | Part)[] = Object.keys(img.aiData).length
@@ -58,7 +109,7 @@ const NewPrompt=()=>{
                 accumulatedText+=chunkText
                 setAnswer(accumulatedText);
             }
-            setImg({isLoading:false, error:"",dbData:{},aiData:{}})
+            mutation.mutate()
         } catch (error) {
             console.error("Error fetching response:", error);
             setAnswer("Error: Unable to generate response.");
@@ -70,9 +121,19 @@ const NewPrompt=()=>{
         const text = (e.currentTarget.elements.namedItem("text") as HTMLInputElement)?.value;
         if (!text) return;
 
-        add(text)
+        add(text,false)
 
     }
+    //If you don't need to run this twice as the root layout is in strict mode use effects run twice to find any possible bug, in production this does not need
+    const hasRun = useRef(false)
+    useEffect(() => {
+        if(!hasRun.current){
+            if(data?.history?.length ===1){
+                add(data.history[0].parts[0].text, true)
+            }
+        }
+        hasRun.current=true
+    }, []);
 
     return(
         <>
@@ -88,7 +149,7 @@ const NewPrompt=()=>{
             {question && (<div className="message user">{question}</div>)}
             {answer && (<div className="message"><Markdown>{answer}</Markdown></div>)}
             <div className="endChat" ref={endRef}></div>
-            <form className="newPrompt" onSubmit={handleSubmit}>
+            <form className="newPrompt" onSubmit={handleSubmit} ref={formRef}>
                 <Upload setImg={setImg}/>
                 <input id="file" type="file"  multiple={false} hidden/>
                 <input type="text" name="text" placeholder="Plan your next trip..."/>

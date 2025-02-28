@@ -60,6 +60,7 @@
 
     .formContainer{
         margin-top: auto;
+        margin-bottom: 10px;
         width: 50%;
         background-color: #2c2937;
         border-radius: 20px;

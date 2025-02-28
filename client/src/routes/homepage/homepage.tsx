@@ -2,7 +2,7 @@ import './homepage.css'
 import React, {useState} from "react";
 import {Link} from "react-router-dom";
 import {TypeAnimation} from "react-type-animation";
-
+import bg from '../../../public/bg.png'
 const Homepage: React.FC =()=>{
 
     const [typingStatus, setTypingStatus] = useState('human1')
@@ -21,7 +21,7 @@ const Homepage: React.FC =()=>{
             <div className="right">
                 <div className="imgContainer">
                     <div className="bgContainer">
-                        <div className="bg"></div>
+                        <div className="bg" style={{ backgroundImage: `url(${bg})` }}></div>
                     </div>
                     <img src="/bot.png" alt="bot" className="bot"/>
                     <div className="chat">

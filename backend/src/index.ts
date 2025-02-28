@@ -135,6 +135,32 @@ app.get("/api/chats/:id",requireAuth(),async (req,res)=>{
     }
 })
 
+app.put("/api/chats/:id",requireAuth(),async (req,res)=>{
+    const authRequest = req as AuthRequest;
+    const userId = authRequest.auth.userId;
+
+    const {question, answer, img} = req.body
+    const newItem =[
+        ...(question?[{role:"user",parts:[{text:question}],...(img && {img})}]:[]),
+        {role:"model",parts:[{text:answer}]}
+    ]
+    try{
+        const updatedChat = await Chat.updateOne({_id:req.params.id, userId},{
+            $push:{
+                history:{
+                    $each:newItem
+                }
+            }
+        })
+        res.status(200).send(updatedChat);
+
+    }catch(err){
+        console.log(err)
+        res.status(500).send("Error addding chat! ")
+    }
+})
+
+
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     console.error(err.stack);

@@ -52,11 +52,11 @@ const DashboardPage =()=>{
                     </div>
                     <div className="option">
                         <img src="/image.png" alt=''/>
-                        <span>Analyze Images</span>
+                        <span>Explore Destinations</span>
                     </div>
                     <div className="option">
                         <img src="/code.png" alt=''/>
-                        <span>Help me with my Code</span>
+                        <span>Smart Itinerary</span>
                     </div>
                 </div>
             </div>
