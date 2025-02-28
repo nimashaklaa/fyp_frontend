@@ -19,6 +19,21 @@ const NewPrompt=()=>{
     const [question, setQuestion] = useState("")
     const [answer, setAnswer] = useState("")
 
+    const chat = model.startChat({
+        history:[
+            {
+                role:"user",
+                parts:[{text:"Hello, I have 2 dogs in my house"}],
+            },
+            {
+                role:"model",
+                parts:[{text: "Great!. What do you need to know?"}]
+            }
+        ],
+        generationConfig:{
+            // maxOutputTokens:100
+        }
+    })
 
     // this is used to automatically scroll down to the end of the chat
     const endRef =useRef<HTMLDivElement | null>(null)
@@ -35,23 +50,28 @@ const NewPrompt=()=>{
                 ? [{ inlineData: img.aiData.inlineData }, prompt] // Convert to correct type
                 : [prompt];
 
-            const result = await model.generateContent(inputParts);
-
-            const responseText = result.response.text() || "Error: No valid response received";
-            setAnswer(responseText);
+            const result = await chat.sendMessageStream(inputParts)
+            let accumulatedText =""
+            for await (const chunk of result.stream){
+                const chunkText = chunk.text()
+                console.log(chunkText)
+                accumulatedText+=chunkText
+                setAnswer(accumulatedText);
+            }
             setImg({isLoading:false, error:"",dbData:{},aiData:{}})
         } catch (error) {
             console.error("Error fetching response:", error);
             setAnswer("Error: Unable to generate response.");
         }
     }
-    const handleSubmit=(e: React.FormEvent<HTMLFormElement>)=>{
+    const handleSubmit=async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
 
         const text = (e.currentTarget.elements.namedItem("text") as HTMLInputElement)?.value;
-        if(!text) return;
+        if (!text) return;
 
         add(text)
+
     }
 
     return(
