@@ -1,14 +1,8 @@
 import './chatPage.css'
-import React, {useEffect, useRef} from "react";
+import React from "react";
+import NewPrompt from "../../components/newPrompt/newPrompt.tsx";
 
 const ChatPage: React.FC =()=>{
-
-    // this is used to automatically scroll down to the end of the chat
-    const endRef =useRef<HTMLDivElement | null>(null)
-
-    useEffect(() => {
-        endRef.current?.scrollIntoView({behavior:"smooth"})
-    }, []);
 
     return(
         <div className='chatPage'>
@@ -30,7 +24,8 @@ const ChatPage: React.FC =()=>{
                     <div className="message user">Test msg from user</div>
                     <div className="message">Test msg from ai</div>
                     <div className="message user">Test msg from user</div>
-                    <div ref={endRef}/>
+                    <NewPrompt/>
+
                 </div>
             </div>
         </div>

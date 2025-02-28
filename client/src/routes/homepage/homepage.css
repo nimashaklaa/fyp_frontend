@@ -81,7 +81,7 @@
                 border-radius: 50px;
 
                 .bg{
-                    background-image: url('/public/bg.png');
+                    background-image: url('/client/public/bg.png');
                     opacity: 0.2;
                     width: 200%;
                     height: 100%;
