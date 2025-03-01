@@ -17,6 +17,12 @@ interface NewPromptProps{
     data?:{
         _id?:string;
         history:ChatMessage[];
+        plans?:{
+            version: number;
+            initialPrompt: string;
+            feedback?: string;
+            updatedPlan: string;
+        }[]
     }
 }
 
@@ -26,6 +32,8 @@ const NewPrompt=({data}:NewPromptProps)=>{
     const [question, setQuestion] = useState("")
     const [answer, setAnswer] = useState("")
     const [isTyping, setIsTyping] = useState(false)
+
+    const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
     // this is used to automatically scroll down to the end of the chat
     const endRef =useRef<HTMLDivElement | null>(null)
@@ -77,8 +85,8 @@ const NewPrompt=({data}:NewPromptProps)=>{
         endRef.current?.scrollIntoView({behavior:"smooth"})
     }, [question, answer, img.dbData]);
 
-    const add = async (prompt:string, isInitail:boolean)=>{
-        if (!isInitail) setQuestion(prompt)
+    const add = async (prompt:string, isInitial:boolean)=>{
+        if (!isInitial) setQuestion(prompt)
 
         setIsTyping(true)
         try {
@@ -97,7 +105,6 @@ const NewPrompt=({data}:NewPromptProps)=>{
             if (!data.message) {
                 throw new Error("Invalid response structure");
             }
-
             setAnswer(prev => (prev === data.message ? prev : data.message));
 
             mutation.mutate({
@@ -112,14 +119,52 @@ const NewPrompt=({data}:NewPromptProps)=>{
             setIsTyping(false);
         }
     }
+
+    const updatePlan = async (feedback: string, choice: number) => {
+        if (!data?._id) {
+            console.error("❌ Chat ID is missing. Cannot update plan.");
+            return;
+        }
+
+        const lastPlan = data.plans?.[data.plans.length-1]
+
+        setIsTyping(true);
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/update_plan/${data._id}`, {
+                method: "PUT",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ feedback, original_plan: lastPlan?.updatedPlan ?? "No previous plan",choice }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const updatedData = await response.json();
+            console.log("updated response",updatedData)
+            setAnswer(updatedData.updatedPlan);
+        } catch (error) {
+            console.error("Error fetching response:", error);
+            setAnswer("Error: Unable to generate response.");
+        } finally {
+            setIsTyping(false);
+        }
+    };
+
     const handleSubmit=async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
 
         const text = (e.currentTarget.elements.namedItem("text") as HTMLInputElement)?.value;
         if (!text) return;
 
-        add(text,false)
-
+        if(!data || !data.history.length){
+            console.log("Now you are handling a new plan")
+            add(text,false)
+        }else{
+            console.log("Now you are handling an feedback plan")
+            updatePlan(text,selectedOption??5)
+        }
     }
     //If you don't need to run this twice as the root layout is in strict mode use effects run twice to find any possible bug, in production this does not need
     const hasRun = useRef(false)
@@ -159,6 +204,21 @@ const NewPrompt=({data}:NewPromptProps)=>{
                     </div>
                 )
             )}
+
+            {/* Selection Dropdown for Iterative Feedback */}
+            {data && data.history.length > 0 && (
+                <div className="feedback-section">
+                    <label>Select what to update:</label>
+                    <select value={selectedOption ?? ""} onChange={(e) => setSelectedOption(Number(e.target.value))}>
+                        <option value="1">Transportation</option>
+                        <option value="2">Accommodation</option>
+                        <option value="3">Attractions</option>
+                        <option value="4">Restaurants</option>
+                        <option value="5">All of the above</option>
+                    </select>
+                </div>
+            )}
+
             <div className="endChat" ref={endRef}></div>
             <form className="newPrompt" onSubmit={handleSubmit} ref={formRef}>
                 {/*<Upload setImg={setImg}/>*/}

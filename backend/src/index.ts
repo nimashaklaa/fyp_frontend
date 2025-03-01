@@ -154,11 +154,93 @@ app.put("/api/chats/:id",requireAuth(),async (req,res)=>{
         })
         res.status(200).send(updatedChat);
 
+        const chat = await Chat.findOne({_id:req.params.id, userId})
+        if(chat.plans.length === 0){
+            const initialPlan = {
+                version: 1,
+                initialPrompt: question,
+                updatedPlan: answer,
+                feedback: null,
+                timestamp: new Date(),
+            };
+
+            await Chat.updateOne(
+                { _id: req.params.id, userId },
+                { $push: { plans: initialPlan } }
+            );
+
+            console.log(`✅ Initial plan stored for chat ID ${req.params.id}`);
+        }
+
     }catch(err){
         console.log(err)
         res.status(500).send("Error addding chat! ")
     }
 })
+app.put("/api/update_plan/:chatId", requireAuth(),async (req,res) => {
+    const { chatId } = req.params;
+    const { feedback, choice } = req.body;
+
+    const authRequest = req as AuthRequest;
+    const userId = authRequest.auth.userId;
+
+    try {
+        const chat = await Chat.findOne({ _id: chatId, userId });
+        if (!chat) {
+            console.error(`❌ Chat with ID ${chatId} not found.`);
+            res.status(404).json({ error: "Chat not found" });
+            return; // ✅ Ensure function exits properly
+        }
+
+        const lastPlan = chat.plans?.[chat.plans.length - 1];
+        console.log(lastPlan)
+
+        // If there's no previous plan, return error
+        if (!lastPlan) {
+            console.error(`❌ No previous plan found for chat ID ${chatId}`);
+            res.status(400).json({ error: "No previous plan available" });
+            return; // ✅ Ensure function exits properly
+        }
+
+        console.log("passed data",feedback,choice)
+
+        // Call AI API to get updated plan
+        const response = await fetch("http://127.0.0.1:8000/update_plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                original_plan: lastPlan.updatedPlan,
+                feedback,
+                choice,
+                previous_version: lastPlan.version,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to get updated plan from AI");
+        }
+
+        const updatedData = await response.json();
+        console.log("updated data",updatedData)
+        const updatedPlan = updatedData.updated_plan;
+
+        // Save new version
+        const newPlan = {
+            version: lastPlan.version + 1,
+            initialPrompt: lastPlan.initialPrompt,
+            feedback,
+            updatedPlan,
+            timestamp: new Date(),
+        };
+
+        chat.plans.push(newPlan);
+        await chat.save();
+        res.json(newPlan);
+    } catch (error) {
+        console.error("❌ Error updating plan:", error);
+        res.status(500).send("Error updating plan!");
+    }
+});
 
 
 

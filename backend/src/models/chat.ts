@@ -25,6 +25,30 @@ const chatSchema = new mongoose.Schema({
                     required:false,
                 }
             }
+        ],
+        plans:[
+            {
+                version:{
+                    type:Number,
+                    required:true
+                },
+                initialPrompt:{
+                    type:String,
+                    required:true,
+                },
+                feedback:{
+                    type:String,
+                    default:null
+                },
+                updatedPlan:{
+                    type:String,
+                    required:true,
+                },
+                timestamp:{
+                    type:Date,
+                    default:Date.now
+                }
+            }
         ]
 
     },
